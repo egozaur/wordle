@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<script src="/auth.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#ffffff">
+<title>Wordle · PL3Y</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-title" content="PL3Y">
+<link rel="manifest" href="/site.webmanifest">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="robots" content="noindex, nofollow">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app">
+
+  <!-- EKRAN STARTOWY -->
+  <section id="home" class="screen">
+    <div class="home-top">
+      <a class="lobby-link" href="/">← PL3Y</a>
+      <button class="icon-btn" id="homeSettings" aria-label="Ustawienia">⚙</button>
+    </div>
+    <div class="logo" aria-label="Wordle">
+      <span>W</span><span>O</span><span>R</span><span>D</span><span>L</span><span>E</span>
+    </div>
+    <p class="tagline" data-i18n="tagline"></p>
+
+    <div class="group">
+      <div class="group-label" data-i18n="language"></div>
+      <div class="seg" id="langSeg">
+        <button data-lang="pl">🇵🇱 Polski</button>
+        <button data-lang="en">🇬🇧 English</button>
+      </div>
+    </div>
+
+    <div class="group">
+      <div class="group-label" data-i18n="letters"></div>
+      <div class="chips" id="lenChips">
+        <button class="chip" data-len="5">5</button>
+        <button class="chip locked" data-len="6">6 <i>🔒</i></button>
+        <button class="chip locked" data-len="7">7 <i>🔒</i></button>
+      </div>
+    </div>
+
+    <div class="modes">
+      <button class="mode primary" id="playDaily">
+        <span class="mode-title" data-i18n="daily"></span>
+        <span class="mode-sub" id="dailySub"></span>
+      </button>
+      <button class="mode" id="playPractice">
+        <span class="mode-title" data-i18n="practice"></span>
+        <span class="mode-sub" data-i18n="practiceSub"></span>
+      </button>
+    </div>
+
+    <div class="home-links">
+      <button class="link" id="homeStats" data-i18n="stats"></button>
+      <button class="link" id="homeHelp" data-i18n="howto"></button>
+    </div>
+  </section>
+
+  <!-- EKRAN GRY -->
+  <section id="game" class="screen" hidden>
+    <header class="bar">
+      <button class="icon-btn" id="backBtn" aria-label="Wróć">←</button>
+      <div class="bar-title"><h1 id="gameTitle">Wordle</h1><small id="gameSub"></small></div>
+      <div class="bar-actions">
+        <button class="icon-btn" id="helpBtn" aria-label="Pomoc">?</button>
+        <button class="icon-btn" id="statsBtn" aria-label="Statystyki">▥</button>
+        <button class="icon-btn" id="settingsBtn" aria-label="Ustawienia">⚙</button>
+      </div>
+    </header>
+    <main class="play">
+      <div id="board" aria-live="polite"></div>
+    </main>
+    <div id="keyboard"></div>
+  </section>
+
+  <div id="toasts"></div>
+
+  <!-- MODALE -->
+  <div class="modal" id="modal" hidden>
+    <div class="sheet" role="dialog" aria-modal="true">
+      <button class="close" id="modalClose" aria-label="Zamknij">✕</button>
+      <div id="modalBody"></div>
+    </div>
+  </div>
+</div>
+
+<script src="data/words-pl.js"></script>
+<script src="data/words-en.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
