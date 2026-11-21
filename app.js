@@ -10,12 +10,15 @@ const LANGS = {
   pl: {
     data: window.WORDS_PL,
     alphabet: 'AĄBCĆDEĘFGHIJKLŁMNŃOÓPRSŚTUWYZŹŻ'.split(''),
+    // normalny układ QWERTY; Q, V, X wyszarzone (nie ma ich w polskich słowach), ogonki w ostatnim rzędzie
     rows: [
-      ['Ą','Ć','Ę','Ł','Ń','Ó','Ś','Ź','Ż'],
-      ['W','E','R','T','Y','U','I','O','P'],
+      ['Q','W','E','R','T','Y','U','I','O','P'],
       ['A','S','D','F','G','H','J','K','L'],
-      ['ENTER','Z','C','B','N','M','BACK']
+      ['ENTER','Z','X','C','V','B','N','M','BACK'],
+      ['Ą','Ć','Ę','Ł','Ń','Ó','Ś','Ź','Ż']
     ],
+    off: ['Q','V','X'],
+    extraRow: 3,
     seed: 1101
   },
   en: {
@@ -41,6 +44,11 @@ const I18N = {
     stats: 'Statystyki', howto: 'Jak grać', settings: 'Ustawienia',
     soon: 'Dłuższe słowa już wkrótce!',
     notEnough: 'Za mało liter', notInList: 'Nie ma takiego słowa', copied: 'Skopiowano wyniki!',
+    fixed: w => `Poprawiono na ${w}`, pickTitle: 'Które słowo?', pickSub: 'Bez polskich znaków pasuje kilka słów.',
+    needNick: 'Słowo dnia i ranking wymagają nicka.', offline: 'Brak połączenia z serwerem.', ranking: 'Ranking',
+    rankToday: 'Dziś', rankAll: 'Wszech czasów', rankEmpty: 'Nikt jeszcze dziś nie skończył. Bądź pierwszy!',
+    rankAllEmpty: 'Brak wyników.', yourPlace: n => `Twoje miejsce dziś: ${n}`, triesShort: 'próby', timeShort: 'czas',
+    winsShort: 'wygrane', avgShort: 'śr. prób', streakShort: 'seria', playingAs: n => `Grasz jako ${n}`,
     praise: ['Genialnie!', 'Niesamowite!', 'Świetnie!', 'Super!', 'Brawo!', 'Uff, udało się!'],
     played: 'Gry', winPct: '% wygranych', streak: 'Seria', maxStreak: 'Najlepsza seria',
     dist: 'Rozkład prób', share: 'Udostępnij', playOn: 'Graj dalej', nextWord: 'Następne słowo',
@@ -57,7 +65,7 @@ const I18N = {
       <p>Po każdej próbie kolor kafelka pokaże, jak blisko jesteś.</p>`,
     exG: 'Litera jest w słowie i na dobrym miejscu.', exY: 'Litera jest w słowie, ale na złym miejscu.', exA: 'Tej litery nie ma w słowie.',
     howExamples: 'Przykłady',
-    howTail: '<p>Nowe słowo dnia pojawia się o północy. W polskiej wersji ą, ć, ę, ł, ń, ó, ś, ź, ż są osobnymi literami.</p>',
+    howTail: '<p>Nowe słowo dnia pojawia się o północy. W polskiej wersji ą, ć, ę, ł, ń, ó, ś, ź, ż są osobnymi literami. Możesz pisać bez ogonków: gra sama poprawi słowo albo zapyta, które miałeś na myśli.</p><p class="fine">Słownik: <a href="https://sjp.pl/sl/growy/" target="_blank" rel="noopener">SJP.pl</a> (CC BY 4.0).</p>',
     letterWord: n => `${n} liter`
   },
   en: {
@@ -70,6 +78,11 @@ const I18N = {
     stats: 'Statistics', howto: 'How to play', settings: 'Settings',
     soon: 'Longer words coming soon!',
     notEnough: 'Not enough letters', notInList: 'Not in word list', copied: 'Results copied!',
+    fixed: w => `Corrected to ${w}`, pickTitle: 'Which word?', pickSub: 'Several words match.',
+    needNick: 'Word of the day and ranking need a nickname.', offline: 'Cannot reach the server.', ranking: 'Ranking',
+    rankToday: 'Today', rankAll: 'All time', rankEmpty: 'Nobody has finished today yet.',
+    rankAllEmpty: 'No results.', yourPlace: n => `Your place today: ${n}`, triesShort: 'tries', timeShort: 'time',
+    winsShort: 'wins', avgShort: 'avg', streakShort: 'streak', playingAs: n => `Playing as ${n}`,
     praise: ['Genius!', 'Magnificent!', 'Impressive!', 'Splendid!', 'Great!', 'Phew!'],
     played: 'Played', winPct: 'Win %', streak: 'Streak', maxStreak: 'Max streak',
     dist: 'Guess distribution', share: 'Share', playOn: 'Play on', nextWord: 'Next word',
@@ -102,16 +115,61 @@ const store = {
 function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
 function seededOrder(arr, seed) { const a = arr.slice(), r = mulberry32(seed); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(r() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
 function todayIndex() { const d = new Date(); return Math.floor(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) / 86400000); }
+/* ================= SŁOWNIK ================= */
+// allowed: tablica albo jeden napis rozdzielony spacjami (PL: ~28 tys. słów z SJP)
+const DICT = {};
+function dict(lang) {
+  if (DICT[lang]) return DICT[lang];
+  const d = LANGS[lang].data, list = typeof d.allowed === 'string' ? d.allowed.split(' ') : d.allowed;
+  const set = new Set(list); d.answers.forEach(w => set.add(w));
+  return (DICT[lang] = { set, folded: null });
+}
+// „bez ogonków”: ŻÓŁTY → ZOLTY (do autokorekty słów wpisanych bez polskich znaków)
+const FOLD = { 'Ą': 'A', 'Ć': 'C', 'Ę': 'E', 'Ł': 'L', 'Ń': 'N', 'Ó': 'O', 'Ś': 'S', 'Ź': 'Z', 'Ż': 'Z' };
+const fold = w => w.replace(/[ĄĆĘŁŃÓŚŹŻ]/g, c => FOLD[c]);
+function variants(lang, guess) {
+  const D = dict(lang);
+  if (!D.folded) { D.folded = new Map(); for (const w of D.set) { const k = fold(w); if (k !== w || D.folded.has(k)) { const a = D.folded.get(k) || []; a.push(w); D.folded.set(k, a); } } }
+  const answers = new Set(LANGS[lang].data.answers);
+  // najpierw popularne słowa (z listy słów dnia), potem reszta
+  return (D.folded.get(fold(guess)) || []).filter(w => w !== guess).sort((a, b) => answers.has(b) - answers.has(a));
+}
+/* ================= SERWER: polskie słowo dnia + ranking ================= */
+// Na pl3y.pl (jest /auth.js z graczami) polskie słowo dnia zna tylko serwer: wysyłamy próbę, dostajemy kolory.
+// Lokalnie (bez /auth.js) i w wersji EN słowo dnia liczy przeglądarka, jak dawniej.
+const PL3Y = () => (window.PL3Y && window.PL3Y.player ? window.PL3Y : null);
+const onServer = () => settings.lang === 'pl' && !!PL3Y();
+async function srv(path, body) {
+  const A = PL3Y(), tok = A.token();
+  let r;
+  try {
+    r = await fetch(A.api + path, { method: body ? 'POST' : 'GET', body: body ? JSON.stringify(body) : undefined,
+      headers: Object.assign(body ? { 'Content-Type': 'application/json' } : {}, tok ? { Authorization: 'Bearer ' + tok } : {}) });
+  } catch (e) { throw Object.assign(new Error(t().offline), { code: 'net' }); }
+  let j = {}; try { j = await r.json(); } catch (e) {}
+  if (r.status === 401 && j.code === 'auth') A.expired();
+  if (r.status === 401 && j.code === 'player') A.player.expired();
+  if (!r.ok) throw Object.assign(new Error(j.err || t().offline), { status: r.status, code: j.code, body: j });
+  return j;
+}
+const fmtTime = ms => { const s = Math.round((ms || 0) / 1000); return s < 60 ? s + ' s' : Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
+const escH = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+function avatarTag(e) {
+  const A = PL3Y();
+  return `<span class="rk-av">${e.avatar && A ? `<img src="${A.avatarUrl(e.avatar)}" alt="" onerror="this.remove()">` : escH((e.nick || '?')[0].toUpperCase())}</span>`;
+}
 function dailyWord(lang) { const L = LANGS[lang], order = seededOrder(L.data.answers, L.seed); return order[((todayIndex() % order.length) + order.length) % order.length]; }
 
 /* ================= USTAWIENIA ================= */
-const settings = Object.assign({ lang: (navigator.language || '').toLowerCase().startsWith('pl') ? 'pl' : 'en', len: 5, theme: 'auto', contrast: false, hard: false }, store.get('wordle:settings', {}));
+const settings = Object.assign({ lang: (navigator.language || '').toLowerCase().startsWith('pl') ? 'pl' : 'en', len: 5, theme: 'dark', contrast: false, hard: false }, store.get('wordle:settings', {}));
+// v2: wygląd PL3Y, ciemny motyw domyślnie także dla przeglądarek z zapisanym „auto”
+if (settings.v !== 2) { if (settings.theme === 'auto') settings.theme = 'dark'; settings.v = 2; store.set('wordle:settings', settings); }
 function saveSettings() { store.set('wordle:settings', settings); }
 function applyTheme() {
   const dark = settings.theme === 'dark' || (settings.theme === 'auto' && matchMedia('(prefers-color-scheme: dark)').matches);
   document.documentElement.dataset.theme = dark ? 'dark' : 'light';
   document.documentElement.dataset.contrast = settings.contrast ? '1' : '0';
-  const m = document.querySelector('meta[name=theme-color]'); if (m) m.content = dark ? '#121213' : '#ffffff';
+  const m = document.querySelector('meta[name=theme-color]'); if (m) m.content = dark ? '#0C0B09' : '#F6F1E6';
 }
 matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', applyTheme);
 const t = () => I18N[settings.lang];
@@ -139,8 +197,10 @@ function newGame(mode) {
     answer = pool[Math.floor(Math.random() * pool.length)];
   }
   G = { mode, answer, guesses, current: '', status, locked: false, keyState: {}, hardOn: settings.hard };
-  G.guesses.forEach(g => mergeKeys(g, evaluate(g, answer)));
+  G.guesses.forEach((g, i) => mergeKeys(g, resOf(i)));
 }
+// wynik próby i: z serwera (słowo dnia PL) albo policzony lokalnie
+const resOf = i => (G.results ? G.results[i] : evaluate(G.guesses[i], G.answer));
 
 function evaluate(guess, answer) {
   const n = guess.length, res = Array(n).fill('absent'), left = {};
@@ -153,7 +213,7 @@ function mergeKeys(guess, res) { for (let i = 0; i < guess.length; i++) { const 
 
 function hardCheck(guess) {
   if (!G.hardOn || !G.guesses.length) return null;
-  const prev = G.guesses[G.guesses.length - 1], res = evaluate(prev, G.answer);
+  const prev = G.guesses[G.guesses.length - 1], res = resOf(G.guesses.length - 1);
   for (let i = 0; i < prev.length; i++) if (res[i] === 'correct' && guess[i] !== prev[i]) return t().mustUse(prev[i], i + 1);
   const need = {}; res.forEach((r, i) => { if (r !== 'absent') need[prev[i]] = (need[prev[i]] || 0) + 1; });
   const have = {}; for (const c of guess) have[c] = (have[c] || 0) + 1;
@@ -170,6 +230,9 @@ function renderHome() {
   document.querySelectorAll('#langSeg button').forEach(b => b.classList.toggle('on', b.dataset.lang === settings.lang));
   document.querySelectorAll('#lenChips .chip').forEach(b => b.classList.toggle('on', +b.dataset.len === settings.len));
   const saved = store.get(dayKey(), null);
+  const me = PL3Y() && PL3Y().player.get();
+  $('#homeRank').hidden = !(settings.lang === 'pl' && PL3Y());
+  $('#homeMe').textContent = settings.lang === 'pl' && me ? t().playingAs(me.nick) : '';
   $('#dailySub').textContent = !saved ? t().dailyNew : saved.status === 'won' ? t().dailyWon : saved.status === 'lost' ? t().dailyLost : t().dailyProgress;
 }
 
@@ -183,11 +246,13 @@ function buildBoard() {
 }
 function buildKeyboard() {
   const kb = $('#keyboard'); kb.innerHTML = '';
-  LANGS[settings.lang].rows.forEach((row, ri) => {
-    const r = el('div', 'krow' + (settings.lang === 'pl' && ri === 0 ? ' pl-extra' : ''));
+  const L = LANGS[settings.lang], off = L.off || [];
+  L.rows.forEach((row, ri) => {
+    const r = el('div', 'krow' + (ri === L.extraRow ? ' pl-extra' : ''));
     row.forEach(k => {
-      const b = el('button', 'key' + (k.length > 1 ? ' wide' : ''), k === 'BACK' ? '⌫' : k === 'ENTER' ? (settings.lang === 'pl' ? 'ENTER' : 'ENTER') : k);
+      const b = el('button', 'key' + (k.length > 1 ? ' wide' : '') + (off.includes(k) ? ' off' : ''), k === 'BACK' ? '⌫' : k);
       b.dataset.key = k; b.type = 'button'; b.setAttribute('aria-label', k);
+      if (off.includes(k)) { b.disabled = true; b.tabIndex = -1; }
       r.appendChild(b);
     });
     kb.appendChild(r);
@@ -200,12 +265,27 @@ const rowEl = i => $('#board').children[i];
 function tileEl(r, c) { return rowEl(r).children[c]; }
 function paintRow(r, word) { for (let c = 0; c < settings.len; c++) { const tl = tileEl(r, c), ch = word[c] || ''; tl.textContent = ch; if (ch) tl.dataset.filled = '1'; else delete tl.dataset.filled; } }
 
+async function startServerDaily() {
+  const pl = await PL3Y().player.ask();
+  if (!pl) return toast(t().needNick, 2500);
+  let s;
+  try { s = await srv('/api/wd/state', { pt: pl.pt }); } catch (e) { return toast(e.message, 2500); }
+  G = { mode: 'daily', server: true, answer: s.answer || '', guesses: s.guesses.map(x => x.w), results: s.guesses.map(x => x.r), current: '',
+    status: s.status, locked: false, keyState: {}, hardOn: settings.hard, no: s.no, nextAt: s.nextAt, ms: s.ms };
+  G.guesses.forEach((g, i) => mergeKeys(g, G.results[i]));
+  if (s.status !== 'playing') store.set(dayKey(), { status: s.status });
+  showBoard('daily');
+}
 function startGame(mode) {
-  newGame(mode); show('game');
+  if (mode === 'daily' && onServer()) return startServerDaily();
+  newGame(mode); showBoard(mode);
+}
+function showBoard(mode) {
+  show('game');
   $('#gameSub').textContent = `${mode === 'daily' ? t().daily : t().practice} · ${t().letterWord(settings.len)}`;
   $('#gameTitle').textContent = 'Wordle' + (settings.lang === 'pl' ? ' PL' : ' EN');
   buildBoard(); buildKeyboard();
-  G.guesses.forEach((g, r) => { paintRow(r, g); const res = evaluate(g, G.answer); res.forEach((s, c) => tileEl(r, c).dataset.state = s); });
+  G.guesses.forEach((g, r) => { paintRow(r, g); resOf(r).forEach((s, c) => tileEl(r, c).dataset.state = s); });
   paintKeys();
   if (G.status !== 'playing') setTimeout(() => openResult(), 400);
 }
@@ -230,12 +310,46 @@ function shake(msg) { const r = rowEl(G.guesses.length); r.classList.remove('sha
 async function submit() {
   if (!G || G.locked || G.status !== 'playing') return;
   if (G.current.length < settings.len) return shake(t().notEnough);
-  const guess = G.current, data = LANGS[settings.lang].data;
-  if (!data.allowed.includes(guess) && !data.answers.includes(guess)) return shake(t().notInList);
+  let guess = G.current;
+  if (G.picked === guess) G.picked = null;           // gracz już wybrał to słowo z listy
+  else if (dict(settings.lang).set.has(guess)) {
+    // słowo istnieje, ale to rzadka forma (np. LODKA), a z ogonkami jest popularne (ŁÓDKA): zapytaj
+    const answers = LANGS[settings.lang].data.answers;
+    if (fold(guess) === guess && !answers.includes(guess)) {
+      const pop = variants(settings.lang, guess).filter(w => answers.includes(w));
+      if (pop.length) return chooseVariant(pop.concat(guess));
+    }
+  } else {
+    const v = variants(settings.lang, guess);
+    if (!v.length) return shake(t().notInList);
+    if (v.length > 1) return chooseVariant(v);
+    guess = v[0]; setCurrent(guess); toast(t().fixed(guess), 1600);
+  }
   const hm = hardCheck(guess); if (hm) return shake(hm);
-
+  reveal(guess);
+}
+// podmiana wpisanej próby (autokorekta ogonków)
+function setCurrent(word) { G.current = word; paintRow(G.guesses.length, word); }
+// kilka słów pasuje bez ogonków (np. LASKA / ŁASKA): gracz wybiera
+function chooseVariant(list) {
+  const box = el('div');
+  box.innerHTML = `<h2>${t().pickTitle}</h2><p class="fine" style="margin:0 0 12px">${t().pickSub}</p><div class="actions variants"></div>`;
+  const acts = box.querySelector('.actions');
+  list.slice(0, 6).forEach(w => { const b = el('button', 'btn green', w); b.onclick = () => { closeModal(); setCurrent(w); G.picked = w; submit(); }; acts.appendChild(b); });
+  openModal(box);
+}
+async function reveal(guess) {
   G.locked = true;
-  const r = G.guesses.length, res = evaluate(guess, G.answer);
+  const r = G.guesses.length;
+  let res, srvState = null;
+  if (G.server) {
+    try {
+      const pl = PL3Y().player.get();
+      srvState = await srv('/api/wd/guess', { pt: pl && pl.pt, w: guess });
+      res = srvState.guesses[srvState.guesses.length - 1].r;
+    } catch (e) { G.locked = false; return shake(e.code === 'word' ? t().notInList : e.message); }
+    G.results.push(res);
+  } else res = evaluate(guess, G.answer);
   G.guesses.push(guess); G.current = '';
   // animacja odsłaniania
   await Promise.all(res.map((s, c) => (async () => {
@@ -246,9 +360,10 @@ async function submit() {
   })()));
   mergeKeys(guess, res); paintKeys();
 
-  const won = guess === G.answer;
+  const won = res.every(s => s === 'correct');
   G.status = won ? 'won' : G.guesses.length >= MAX_TRIES ? 'lost' : 'playing';
-  if (G.mode === 'daily') store.set(dayKey(), { guesses: G.guesses, status: G.status });
+  if (srvState) { G.status = srvState.status; if (srvState.answer) G.answer = srvState.answer; G.rank = srvState.rank; G.ms = srvState.ms; }
+  if (G.mode === 'daily') store.set(dayKey(), G.server ? { status: G.status } : { guesses: G.guesses, status: G.status });
   if (G.status !== 'playing') finish(won, r);
   G.locked = false;
 }
@@ -289,9 +404,9 @@ function statsHTML() {
 function shareText() {
   const hc = settings.contrast;
   const em = { correct: hc ? '🟧' : '🟩', present: hc ? '🟦' : '🟨', absent: document.documentElement.dataset.theme === 'dark' ? '⬛' : '⬜' };
-  const n = todayIndex() - LAUNCH_DAY + 1;
+  const n = G.no || todayIndex() - LAUNCH_DAY + 1;
   const head = `Wordle ${settings.lang.toUpperCase()} ${settings.len} #${n} ${G.status === 'won' ? G.guesses.length : 'X'}/${MAX_TRIES}${G.hardOn ? '*' : ''}`;
-  return head + '\n\n' + G.guesses.map(g => evaluate(g, G.answer).map(s => em[s]).join('')).join('\n');
+  return head + '\n\n' + G.guesses.map((g, i) => resOf(i).map(s => em[s]).join('')).join('\n');
 }
 async function share() {
   const text = shareText();
@@ -303,17 +418,47 @@ function openResult() {
   const box = el('div'), won = G.status === 'won', daily = G.mode === 'daily';
   box.innerHTML = (daily ? statsHTML() : `<h2>${won ? t().praise[Math.min(G.guesses.length - 1, 5)] : t().theWordWas}</h2><p class="fine" style="margin:0 0 10px">${t().practiceNote}</p>`)
     + `<div class="result-word">${won && !daily ? '' : G.answer}</div>`
+    + (daily && G.server ? `<div class="rk-mine">${G.rank ? t().yourPlace(G.rank) : ''}</div><div class="actions" style="margin-top:6px"><button class="btn ghost" data-rank="1">${t().ranking}</button></div>` : '')
     + (daily ? `<div class="next-in">${t().nextIn}<b id="cd">--:--:--</b></div>` : '')
     + `<div class="actions"></div>`;
-  const acts = box.querySelector('.actions');
+  const rb = box.querySelector('[data-rank]'); if (rb) rb.onclick = () => openRanking('today');
+  const acts = box.querySelectorAll('.actions')[box.querySelectorAll('.actions').length - 1];
   if (daily) { const b = el('button', 'btn green', t().share); b.onclick = share; acts.appendChild(b); }
   const more = el('button', 'btn' + (daily ? '' : ' green'), daily ? t().playOn : t().nextWord);
   more.onclick = () => { closeModal(); startGame('practice'); }; acts.appendChild(more);
   const menu = el('button', 'btn ghost', t().menu); menu.onclick = () => { closeModal(); goHome(); }; acts.appendChild(menu);
   openModal(box);
-  if (daily) { const tick = () => { const n = new Date(), m = new Date(n.getFullYear(), n.getMonth(), n.getDate() + 1), d = Math.max(0, m - n); const p = x => String(x).padStart(2, '0'); const c = $('#cd'); if (c) c.textContent = `${p(Math.floor(d / 36e5))}:${p(Math.floor(d / 6e4) % 60)}:${p(Math.floor(d / 1e3) % 60)}`; if (d <= 0) location.reload(); }; tick(); countdownTimer = setInterval(tick, 1000); }
+  if (daily) { const tick = () => { const n = new Date(), m = G && G.nextAt ? new Date(G.nextAt) : new Date(n.getFullYear(), n.getMonth(), n.getDate() + 1), d = Math.max(0, m - n); const p = x => String(x).padStart(2, '0'); const c = $('#cd'); if (c) c.textContent = `${p(Math.floor(d / 36e5))}:${p(Math.floor(d / 6e4) % 60)}:${p(Math.floor(d / 1e3) % 60)}`; if (d <= 0) location.reload(); }; tick(); countdownTimer = setInterval(tick, 1000); }
 }
 function openStats() { openModal(statsHTML()); }
+
+// Ranking słowa dnia (serwer): dziś (próby, czas) i wszech czasów (wygrane, średnia, seria).
+function rankTodayHTML(list) {
+  if (!list.length) return `<p class="fine">${t().rankEmpty}</p>`;
+  const me = PL3Y() && PL3Y().player.get();
+  return '<ol class="rank">' + list.map((e, i) => `<li class="${me && e.nick === me.nick ? 'me' : ''}"><b class="rk-n">${i + 1}</b>${avatarTag(e)}<span class="rk-nick">${escH(e.nick)}</span>
+    <span class="rk-val">${e.won ? e.tries + '/' + MAX_TRIES : 'X/' + MAX_TRIES}</span><span class="rk-t">${e.won ? fmtTime(e.ms) : '–'}</span></li>`).join('') + '</ol>';
+}
+function rankAllHTML(list) {
+  if (!list.length) return `<p class="fine">${t().rankAllEmpty}</p>`;
+  const me = PL3Y() && PL3Y().player.get();
+  return `<div class="rk-head"><span></span><span>${t().winsShort}</span><span>${t().avgShort}</span><span>${t().streakShort}</span></div><ol class="rank all">` +
+    list.map((e, i) => `<li class="${me && e.nick === me.nick ? 'me' : ''}"><b class="rk-n">${i + 1}</b>${avatarTag(e)}<span class="rk-nick">${escH(e.nick)}</span>
+    <span class="rk-val">${e.wins}/${e.played}</span><span class="rk-t">${e.avg == null ? '–' : String(e.avg).replace('.', ',')}</span><span class="rk-t">${e.streak}</span></li>`).join('') + '</ol>';
+}
+async function openRanking(tab = 'today') {
+  const box = el('div');
+  box.innerHTML = `<h2>${t().ranking} · Wordle PL</h2><div class="mini-seg rk-tabs"><button data-tab="today">${t().rankToday}</button><button data-tab="all">${t().rankAll}</button></div><div class="rk-body"><p class="fine">…</p></div>`;
+  openModal(box);
+  let data;
+  const paint = () => {
+    box.querySelectorAll('.rk-tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === tab));
+    if (data) box.querySelector('.rk-body').innerHTML = tab === 'today' ? `<p class="fine" style="margin:0 0 8px">#${data.no}</p>` + rankTodayHTML(data.today) : rankAllHTML(data.all);
+  };
+  box.querySelector('.rk-tabs').addEventListener('click', e => { const b = e.target.closest('button'); if (b) { tab = b.dataset.tab; paint(); } });
+  paint();
+  try { data = await srv('/api/wd/rank'); paint(); } catch (e) { box.querySelector('.rk-body').innerHTML = `<p class="fine">${escH(e.message)}</p>`; }
+}
 function openHelp() {
   const s = (ch, st) => `<div class="tile" data-state="${st || ''}" ${ch ? 'data-filled="1"' : ''}>${ch}</div>`;
   const w1 = settings.lang === 'pl' ? ['K', 'R', 'O', 'W', 'A'] : ['W', 'E', 'A', 'R', 'Y'];
@@ -357,6 +502,8 @@ $('#playPractice').onclick = () => startGame('practice');
 $('#homeSettings').onclick = openSettings;
 $('#homeStats').onclick = openStats;
 $('#homeHelp').onclick = openHelp;
+$('#homeRank').onclick = () => openRanking('today');
+document.addEventListener('pl3y:player', () => { if (!$('#home').hidden) renderHome(); });
 $('#backBtn').onclick = goHome;
 $('#helpBtn').onclick = openHelp;
 $('#statsBtn').onclick = () => (G && G.status !== 'playing') ? openResult() : openStats();

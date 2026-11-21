@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <script src="/auth.js"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
-<meta name="theme-color" content="#ffffff">
+<meta name="theme-color" content="#0C0B09">
 <title>Wordle · PL3Y</title>
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
@@ -14,6 +14,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="robots" content="noindex, nofollow">
+<link rel="stylesheet" href="/pl3y.css?v=1">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -29,6 +30,7 @@
       <span>W</span><span>O</span><span>R</span><span>D</span><span>L</span><span>E</span>
     </div>
     <p class="tagline" data-i18n="tagline"></p>
+    <p class="me-line" id="homeMe"></p>
 
     <div class="group">
       <div class="group-label" data-i18n="language"></div>
@@ -59,6 +61,7 @@
     </div>
 
     <div class="home-links">
+      <button class="link" id="homeRank" data-i18n="ranking" hidden></button>
       <button class="link" id="homeStats" data-i18n="stats"></button>
       <button class="link" id="homeHelp" data-i18n="howto"></button>
     </div>
