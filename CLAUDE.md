@@ -1,5 +1,11 @@
 # CLAUDE.md
 
+## Szybki start
+- Wordle PL/EN: słowo dnia, tryb „Graj dalej”, statystyki; na pl3y.pl słowo dnia PL i ranking liczy serwer (wymaga gracza z nickiem).
+- Pliki: `index.html`, `app.js` (cała logika), `style.css`, `data/words-pl.js` i `words-en.js` (**generowane** przez `dev/build-words-pl.mjs`).
+- Serwer: `../pl3y-server/src/games/wordle/daily.js` (DO `WdDaily`); `words-pl.js` serwera generuje ten sam skrypt. Testy: `cd ../pl3y-server && node --test test/all.test.js` (`test/core/players.suite.js`).
+- Lokalnie: `node C:\Users\Kurczak\tools\scripts\serve.mjs C:\Users\Kurczak\pl3y 8090` serwuje folder z wszystkimi repo (potrzebny dla `?local=1`), otwórz `/wordle/` (bez `/auth.js` słowo dnia liczy przeglądarka).
+
 Zawsze odpowiadaj po polsku. Teksty UI i komentarze po polsku.
 
 ## Projekt
@@ -12,7 +18,7 @@ Wordle (PL/EN) w lobby PL3Y: `https://pl3y.pl/wordle/` (repo `egozaur/wordle`, G
   - PL: `allowed` = wszystkie 5-literowe słowa ze **Słownika SJP.pl do gier słownych** (licencja CC BY 4.0, informacja o źródle w „Jak grać”; ~28,6 tys. słów, bez Q/V/X), `answers` = ~420 popularnych rzeczowników w mianowniku wybranych ręcznie. Plik jest generowany skryptem `dev/build-words-pl.mjs <slowa.txt>` (instrukcja w pliku); nie edytuj `allowed` ręcznie.
   - `dict(lang)` buduje `Set` ze słownika przy pierwszym użyciu (nie używaj `includes` na liście).
 - Autokorekta ogonków (`fold`, `variants` w `app.js`): słowo spoza słownika z jednym wariantem z ogonkami jest poprawiane (ZOLTY → ŻÓŁTY), z kilkoma wariantami gracz wybiera z listy (`chooseVariant`). Słowo bez ogonków, które istnieje, ale nie jest słowem dnia, a ma popularny wariant z ogonkami (LODKA / ŁÓDKA), też otwiera wybór.
-- **Słowo dnia PL na serwerze** (na pl3y.pl, gdy jest `/auth.js` z graczami): `startServerDaily()` wymaga gracza (nick + PIN, `PL3Y.player.ask()`), stan i próby idą do `POST /api/wd/state|guess` (`srv()`), kolory przychodzą z serwera (`G.results`, `resOf(i)`), słowo dopiero po końcu gry. Ranking: `GET /api/wd/rank` (`openRanking`, link „Ranking” na starcie, przycisk po grze). Serwer: `mafia/worker/src/wordle/daily.js`. Lokalnie (bez `/auth.js`) i w wersji EN słowo dnia liczy przeglądarka jak dawniej (`dailyWord`). `dev/build-words-pl.mjs` zapisuje tę samą listę także do `../mafia/worker/src/wordle/words-pl.js` (po zmianie listy commit w obu repo).
+- **Słowo dnia PL na serwerze** (na pl3y.pl, gdy jest `/auth.js` z graczami): `startServerDaily()` wymaga gracza (nick + PIN, `PL3Y.player.ask()`), stan i próby idą do `POST /api/wd/state|guess` (`srv()`), kolory przychodzą z serwera (`G.results`, `resOf(i)`), słowo dopiero po końcu gry. Ranking: `GET /api/wd/rank` (`openRanking`, link „Ranking” na starcie, przycisk po grze). Serwer: `pl3y-server/src/games/wordle/daily.js`. Lokalnie (bez `/auth.js`) i w wersji EN słowo dnia liczy przeglądarka jak dawniej (`dailyWord`). `dev/build-words-pl.mjs` zapisuje tę samą listę także do `../pl3y-server/src/games/wordle/words-pl.js` (po zmianie listy commit w obu repo).
 - Wygląd PL3Y: tokeny z `/pl3y.css?v=1` (z wartościami zapasowymi), domyślnie ciemny motyw (migracja `settings.v = 2`), jasny = ciepły papier.
 - Klawiatura PL: normalny układ QWERTY, Q/V/X wyszarzone (`off`), rząd ą ć ę ł ń ó ś ź ż na dole (`extraRow`).
 - Dłuższe słowa: `AVAILABLE_LENGTHS` w `app.js` (teraz tylko 5); dla 6 i 7 liter trzeba dodać osobne listy słów.

@@ -26,11 +26,11 @@ fs.writeFileSync(out,
   `window.WORDS_PL={answers:${JSON.stringify(answers)},\nallowed:"${words.join(' ')}"};\n`);
 console.log('dozwolone:', words.length, 'słowa dnia:', answers.length);
 
-// Ta sama lista dla serwera (słowo dnia i sprawdzanie prób w Workerze, repo mafia obok).
-const srv = path.join(path.dirname(out), '..', '..', 'mafia', 'worker', 'src', 'wordle', 'words-pl.js');
+// Ta sama lista dla serwera (słowo dnia i sprawdzanie prób w Workerze, repo pl3y-server obok).
+const srv = path.join(path.dirname(out), '..', '..', 'pl3y-server', 'src', 'games', 'wordle', 'words-pl.js');
 if (fs.existsSync(path.dirname(srv))) {
   fs.writeFileSync(srv,
     `// Wygenerowane przez wordle/dev/build-words-pl.mjs – nie edytuj ręcznie. Źródło: Słownik SJP.pl do gier słownych (${edition}), CC BY 4.0.\n` +
     `export const ANSWERS = ${JSON.stringify(answers)};\nexport const ALLOWED = "${words.join(' ')}";\n`);
   console.log('zapisano też', srv);
-} else console.warn('Brak repo mafia obok – pomijam listę dla serwera:', srv);
+} else console.warn('Brak repo pl3y-server obok – pomijam listę dla serwera:', srv);
